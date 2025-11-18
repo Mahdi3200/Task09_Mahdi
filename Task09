@@ -1,0 +1,383 @@
+-- Car Rental Management System
+-- PostgreSQL-compatible SQL script containing:
+-- Part 1: CREATE TABLE
+-- Part 2: INSERT DATA
+-- Parts 3-11: All SELECTs, joins, aggregates, views, and challenge tasks.
+
+-----------------------------
+-- Part 1 — CREATE TABLES
+-----------------------------
+
+DROP TABLE IF EXISTS AggregatedStats;
+DROP VIEW IF EXISTS ActiveRentalsView;
+DROP TABLE IF EXISTS Rentals;
+DROP TABLE IF EXISTS Customers;
+DROP TABLE IF EXISTS Cars;
+
+CREATE TABLE Cars (
+    CarID      SERIAL PRIMARY KEY,
+    Brand      VARCHAR(50) NOT NULL,
+    Model      VARCHAR(50) NOT NULL,
+    Year       INTEGER CHECK (Year > 1900),
+    DailyPrice NUMERIC(8,2) NOT NULL CHECK (DailyPrice >= 0)
+);
+
+CREATE TABLE Customers (
+    CustomerID SERIAL PRIMARY KEY,
+    FullName   VARCHAR(100) NOT NULL,
+    Email      VARCHAR(150) UNIQUE NOT NULL,
+    Phone      VARCHAR(30)
+);
+
+CREATE TABLE Rentals (
+    RentalID   SERIAL PRIMARY KEY,
+    CarID      INTEGER NOT NULL,
+    CustomerID INTEGER NOT NULL,
+    StartDate  DATE NOT NULL,
+    EndDate    DATE NOT NULL,
+    TotalCost  NUMERIC(10,2) NOT NULL CHECK (TotalCost >= 0),
+    CONSTRAINT fk_car FOREIGN KEY (CarID) REFERENCES Cars (CarID) ON DELETE RESTRICT,
+    CONSTRAINT fk_customer FOREIGN KEY (CustomerID) REFERENCES Customers (CustomerID) ON DELETE RESTRICT,
+    CONSTRAINT chk_dates CHECK (EndDate >= StartDate)
+);
+
+-----------------------------
+-- Part 2 — INSERT DATA
+-----------------------------
+-- Insert 8 cars
+INSERT INTO Cars (Brand, Model, Year, DailyPrice) VALUES
+('Toyota', 'Corolla', 2019, 45.00),
+('Honda', 'Civic', 2017, 50.00),
+('Ford', 'Mustang', 2021, 120.00),
+('BMW', '320i', 2018, 85.00),
+('Audi', 'A4', 2020, 95.00),
+('Hyundai', 'Elantra', 2016, 40.00),
+('Tesla', 'Model 3', 2022, 150.00),
+('Kia', 'Sportage', 2015, 60.00);
+
+-- Insert 6 customers
+INSERT INTO Customers (FullName, Email, Phone) VALUES
+('Alice Martin', 'alice.martin@example.com', '604-555-0101'),
+('Bob Anderson', 'bob.anderson@example.net', '604-444-0202'),
+('Carlos Santana', 'carlos.s@example.org', '778-333-0303'),
+('Diana Prince', 'diana.prince@domain.com', '416-222-0404'),
+('Edward Norton', 'ed.norton@sample.com', '604-777-0505'),
+('Fatima Al-Sayed', 'fatima@sayed.co', '647-888-0606');
+
+-- Insert 10 rental records.
+-- Use SELECT to compute TotalCost based on Cars.DailyPrice * (EndDate - StartDate)
+-- Note: date - date returns integer days in PostgreSQL.
+
+-- Rental 1: older rental
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 1, 1, '2025-09-01'::date, '2025-09-05'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 1) * ('2025-09-05'::date - '2025-09-01'::date);
+
+-- Rental 2: within last 30 days
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 3, 2, CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE - INTERVAL '5 days',
+       (SELECT DailyPrice FROM Cars WHERE CarID = 3) * ((CURRENT_DATE - INTERVAL '5 days')::date - (CURRENT_DATE - INTERVAL '10 days')::date);
+
+-- Rental 3: long rental (>5 days)
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 4, 3, '2025-10-01'::date, '2025-10-10'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 4) * ('2025-10-10'::date - '2025-10-01'::date);
+
+-- Rental 4: recent rental (within 30 days)
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 5, 4, CURRENT_DATE - INTERVAL '20 days', CURRENT_DATE - INTERVAL '16 days',
+       (SELECT DailyPrice FROM Cars WHERE CarID = 5) * ((CURRENT_DATE - INTERVAL '16 days')::date - (CURRENT_DATE - INTERVAL '20 days')::date);
+
+-- Rental 5:
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 2, 5, '2025-08-15'::date, '2025-08-18'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 2) * ('2025-08-18'::date - '2025-08-15'::date);
+
+-- Rental 6:
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 6, 6, '2025-11-01'::date, '2025-11-03'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 6) * ('2025-11-03'::date - '2025-11-01'::date);
+
+-- Rental 7: long rental (>5 days)
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 7, 1, '2025-10-20'::date, '2025-10-30'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 7) * ('2025-10-30'::date - '2025-10-20'::date);
+
+-- Rental 8: recent (within last 30 days)
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 1, 2, CURRENT_DATE - INTERVAL '3 days', CURRENT_DATE, 
+       (SELECT DailyPrice FROM Cars WHERE CarID = 1) * (CURRENT_DATE::date - (CURRENT_DATE - INTERVAL '3 days')::date);
+
+-- Rental 9:
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 8, 3, '2025-07-10'::date, '2025-07-12'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 8) * ('2025-07-12'::date - '2025-07-10'::date);
+
+-- Rental 10: same customer repeats
+INSERT INTO Rentals (CarID, CustomerID, StartDate, EndDate, TotalCost)
+SELECT 5, 1, '2025-11-05'::date, '2025-11-08'::date,
+       (SELECT DailyPrice FROM Cars WHERE CarID = 5) * ('2025-11-08'::date - '2025-11-05'::date);
+
+-----------------------------
+-- Part 3 — SELECT Queries
+-----------------------------
+-- 1. List all cars sorted by DailyPrice descending.
+-- (Query 3.1)
+SELECT * FROM Cars
+ORDER BY DailyPrice DESC;
+
+-- 2. Show all customers whose name contains 'a' (case-insensitive).
+-- (Query 3.2)
+SELECT * FROM Customers
+WHERE FullName ILIKE '%a%';
+
+-- 3. Display all rentals with StartDate in the last 30 days.
+-- (Query 3.3)
+SELECT * FROM Rentals
+WHERE StartDate >= (CURRENT_DATE - INTERVAL '30 days')::date
+ORDER BY StartDate DESC;
+
+-----------------------------
+-- Part 4 — WHERE Filtering + Comparison + Logic
+-----------------------------
+-- 1. Cars older than 2018.
+SELECT * FROM Cars
+WHERE Year < 2018
+ORDER BY Year;
+
+-- 2. Customers with phone numbers starting with '604'.
+SELECT * FROM Customers
+WHERE Phone LIKE '604%';
+
+-- 3. Rentals longer than 5 days. (EndDate - StartDate) > 5
+SELECT r.*, (r.EndDate - r.StartDate) AS DurationDays
+FROM Rentals r
+WHERE (r.EndDate - r.StartDate) > 5
+ORDER BY DurationDays DESC;
+
+-- 4. Cars with price between 50 and 100.
+SELECT * FROM Cars
+WHERE DailyPrice BETWEEN 50 AND 100
+ORDER BY DailyPrice;
+
+-----------------------------
+-- Part 5 — INNER & LEFT JOIN
+-----------------------------
+-- 1. List all rentals with car & customer details. (INNER JOIN)
+SELECT r.RentalID, r.StartDate, r.EndDate, (r.EndDate - r.StartDate) AS DurationDays, r.TotalCost,
+       c.CarID, c.Brand, c.Model, c.Year, c.DailyPrice,
+       cu.CustomerID, cu.FullName, cu.Email, cu.Phone
+FROM Rentals r
+JOIN Cars c ON r.CarID = c.CarID
+JOIN Customers cu ON r.CustomerID = cu.CustomerID
+ORDER BY r.StartDate DESC;
+
+-- 2. Show cars that have never been rented (LEFT JOIN).
+SELECT c.*
+FROM Cars c
+LEFT JOIN Rentals r ON c.CarID = r.CarID
+WHERE r.RentalID IS NULL;
+
+-- 3. List customers who rented cars priced over 80/day.
+SELECT DISTINCT cu.CustomerID, cu.FullName, cu.Email, cu.Phone
+FROM Customers cu
+JOIN Rentals r ON cu.CustomerID = r.CustomerID
+JOIN Cars c ON r.CarID = c.CarID
+WHERE c.DailyPrice > 80;
+
+-----------------------------
+-- Part 6 — Aggregate Functions (SUM, COUNT, AVG)
+-----------------------------
+-- 1. Count total rentals.
+SELECT COUNT(*) AS TotalRentals FROM Rentals;
+
+-- 2. Average rental duration (in days).
+SELECT AVG((EndDate - StartDate)) AS AvgRentalDurationDays FROM Rentals;
+
+-- 3. Total revenue generated.
+SELECT SUM(TotalCost) AS TotalRevenue FROM Rentals;
+
+-- 4. Count rentals per customer.
+SELECT cu.CustomerID, cu.FullName, COUNT(r.RentalID) AS RentalsCount
+FROM Customers cu
+LEFT JOIN Rentals r ON cu.CustomerID = r.CustomerID
+GROUP BY cu.CustomerID, cu.FullName
+ORDER BY RentalsCount DESC;
+
+-----------------------------
+-- Part 7 — GROUP BY + HAVING
+-----------------------------
+-- 1. Total revenue per customer.
+SELECT cu.CustomerID, cu.FullName, SUM(r.TotalCost) AS RevenueGenerated
+FROM Customers cu
+LEFT JOIN Rentals r ON cu.CustomerID = r.CustomerID
+GROUP BY cu.CustomerID, cu.FullName
+ORDER BY RevenueGenerated DESC NULLS LAST;
+
+-- 2. Customers with more than 2 rentals.
+SELECT cu.CustomerID, cu.FullName, COUNT(r.RentalID) AS RentalCount
+FROM Customers cu
+JOIN Rentals r ON cu.CustomerID = r.CustomerID
+GROUP BY cu.CustomerID, cu.FullName
+HAVING COUNT(r.RentalID) > 2
+ORDER BY RentalCount DESC;
+
+-- 3. Cars that generated over 500 total income.
+SELECT c.CarID, c.Brand, c.Model, SUM(r.TotalCost) AS TotalIncome
+FROM Cars c
+JOIN Rentals r ON c.CarID = r.CarID
+GROUP BY c.CarID, c.Brand, c.Model
+HAVING SUM(r.TotalCost) > 500
+ORDER BY TotalIncome DESC;
+
+-----------------------------
+-- Part 8 — UNION
+-----------------------------
+-- 1. All customer emails + all car brands in one column using UNION.
+SELECT Email AS combined_value, 'customer_email' AS source FROM Customers
+UNION
+SELECT Brand AS combined_value, 'car_brand' AS source FROM Cars;
+
+-----------------------------
+-- Part 9 — SQL Functions
+-----------------------------
+-- 1. UPPER() → customer names
+SELECT CustomerID, UPPER(FullName) AS NameUpper FROM Customers;
+
+-- 2. LENGTH() → car model names (Postgres uses LENGTH)
+SELECT CarID, Model, LENGTH(Model) AS ModelLength FROM Cars;
+
+-- 3. DATE calculations → rental length
+SELECT RentalID, StartDate, EndDate, (EndDate - StartDate) AS LengthDays FROM Rentals;
+
+-- 4. ROUND() → average rental income rounded to 2 decimals
+SELECT ROUND(AVG(TotalCost)::numeric, 2) AS AvgRentalIncomeRounded FROM Rentals;
+
+-----------------------------
+-- Part 10 — Advanced JOIN Practice
+-----------------------------
+-- 1. SELF JOIN: customers who share the same email domain.
+-- Extract domain after '@' and match
+SELECT a.CustomerID AS CustomerA_ID, a.FullName AS CustomerA_Name,
+       b.CustomerID AS CustomerB_ID, b.FullName AS CustomerB_Name,
+       SUBSTRING(a.Email FROM POSITION('@' IN a.Email)+1) AS Domain
+FROM Customers a
+JOIN Customers b
+  ON LOWER(SUBSTRING(a.Email FROM POSITION('@' IN a.Email)+1)) = LOWER(SUBSTRING(b.Email FROM POSITION('@' IN b.Email)+1))
+ AND a.CustomerID < b.CustomerID
+ORDER BY Domain;
+
+-- 2. CROSS JOIN: show all possible car/customer combinations.
+SELECT c.CarID, c.Brand, c.Model, cu.CustomerID, cu.FullName
+FROM Cars c
+CROSS JOIN Customers cu
+ORDER BY c.CarID, cu.CustomerID
+LIMIT 50; -- limit to 50 rows to keep output manageable
+
+-- 3. Multi-table JOIN: Rentals + Cars + Customers with calculated rental duration.
+SELECT r.RentalID, cu.FullName, c.Brand, c.Model,
+       r.StartDate, r.EndDate, (r.EndDate - r.StartDate) AS DurationDays, r.TotalCost
+FROM Rentals r
+JOIN Cars c ON r.CarID = c.CarID
+JOIN Customers cu ON r.CustomerID = cu.CustomerID
+ORDER BY r.RentalID;
+
+-----------------------------
+-- Part 11 — Challenge Tasks
+-----------------------------
+-- 1. Find the most rented car.
+-- Count rentals per car and show top result(s)
+WITH counts AS (
+  SELECT c.CarID, c.Brand, c.Model, COUNT(r.RentalID) AS RentalCount
+  FROM Cars c
+  LEFT JOIN Rentals r ON c.CarID = r.CarID
+  GROUP BY c.CarID, c.Brand, c.Model
+)
+SELECT CarID, Brand, Model, RentalCount
+FROM counts
+WHERE RentalCount = (SELECT MAX(RentalCount) FROM counts);
+
+-- 2. Find customers who generated the highest revenue.
+-- There may be ties, so show all with max revenue.
+WITH revenue_per_customer AS (
+  SELECT cu.CustomerID, cu.FullName, COALESCE(SUM(r.TotalCost), 0) AS Revenue
+  FROM Customers cu
+  LEFT JOIN Rentals r ON cu.CustomerID = r.CustomerID
+  GROUP BY cu.CustomerID, cu.FullName
+)
+SELECT CustomerID, FullName, Revenue
+FROM revenue_per_customer
+WHERE Revenue = (SELECT MAX(Revenue) FROM revenue_per_customer);
+
+-- 3. List all rentals where the car model name contains the same letter twice (consecutive).
+-- Use POSIX regex to find any char repeated twice: '(.)\1'
+-- Postgres regex operator ~* is case-insensitive.
+SELECT r.*, c.Brand, c.Model
+FROM Rentals r
+JOIN Cars c ON r.CarID = c.CarID
+WHERE c.Model ~* '(.)\1';
+
+-- 4. Create a view: ActiveRentalsView listing rentals where EndDate >= today.
+CREATE OR REPLACE VIEW ActiveRentalsView AS
+SELECT r.RentalID, r.CarID, c.Brand, c.Model, r.CustomerID, cu.FullName, r.StartDate, r.EndDate, r.TotalCost
+FROM Rentals r
+JOIN Cars c ON r.CarID = c.CarID
+JOIN Customers cu ON r.CustomerID = cu.CustomerID
+WHERE r.EndDate >= CURRENT_DATE;
+
+-- Query the view (example)
+SELECT * FROM ActiveRentalsView ORDER BY EndDate ASC;
+
+-- 5. Create a summary table with aggregated statistics (manually computed using INSERT)
+-- Create table
+CREATE TABLE AggregatedStats (
+    StatID SERIAL PRIMARY KEY,
+    StatName VARCHAR(100),
+    StatValue VARCHAR(200),
+    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert aggregated statistics by SELECT (manual insert-from-select)
+-- Total rentals
+INSERT INTO AggregatedStats (StatName, StatValue)
+SELECT 'Total Rentals', CAST(COUNT(*) AS VARCHAR)
+FROM Rentals;
+
+-- Total revenue
+INSERT INTO AggregatedStats (StatName, StatValue)
+SELECT 'Total Revenue', CAST(ROUND(SUM(TotalCost)::numeric,2) AS VARCHAR)
+FROM Rentals;
+
+-- Average rental duration (days)
+INSERT INTO AggregatedStats (StatName, StatValue)
+SELECT 'Average Rental Duration (days)', CAST(ROUND(AVG(EndDate - StartDate)::numeric,2) AS VARCHAR)
+FROM Rentals;
+
+-- Most rented car (brand + model and count)
+INSERT INTO AggregatedStats (StatName, StatValue)
+SELECT 'Most Rented Car', CONCAT(Brand, ' ', Model, ' (', COALESCE(cnt::text, '0'), ' rentals)')
+FROM (
+  SELECT c.Brand, c.Model, COUNT(r.RentalID) AS cnt
+  FROM Cars c
+  LEFT JOIN Rentals r ON c.CarID = r.CarID
+  GROUP BY c.Brand, c.Model
+  ORDER BY cnt DESC LIMIT 1
+) t;
+
+-- Highest revenue customer (name + revenue)
+INSERT INTO AggregatedStats (StatName, StatValue)
+SELECT 'Top Customer by Revenue', CONCAT(FullName, ' (', ROUND(Revenue::numeric, 2)::text, ')')
+FROM (
+  SELECT cu.FullName, COALESCE(SUM(r.TotalCost), 0) AS Revenue
+  FROM Customers cu
+  LEFT JOIN Rentals r ON cu.CustomerID = r.CustomerID
+  GROUP BY cu.FullName
+  ORDER BY Revenue DESC LIMIT 1
+) s;
+
+-- Show the summary table:
+SELECT * FROM AggregatedStats ORDER BY StatID;
+
+-----------------------------
+-- END OF SCRIPT
+-----------------------------
